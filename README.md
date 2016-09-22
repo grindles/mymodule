@@ -1,0 +1,2 @@
+# mymodule
+Simple kernel module
