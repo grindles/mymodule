@@ -1,3 +1,4 @@
+#include <linux/cdev.h>
 #include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/kernel.h>
@@ -10,17 +11,20 @@
 #define CLASS_NAME "myclass"
 
 static dev_t first_dev;
-struct class * myclass = NULL;
+static struct class * myclass = NULL;
+static struct device * mydev = NULL;
+static struct cdev mycdev;
+
+static struct file_operations fops = {
+  .read = my_read,
+  .write = my_write,
+  .open  = my_open,
+  .release = my_close,
+};
 
 static int my_init(void)
 {
   int rc = 0;
-  const struct file_operations fops = {
-    .read = my_read,
-    .write = my_write,
-    .open  = my_open,
-    .release = my_close,
-  };
 
   printk(KERN_INFO "%s: Hello World!\n", __func__);
 
@@ -45,6 +49,33 @@ static int my_init(void)
 
   printk(KERN_INFO "%s: class created, check out /sys/class/%s\n", __func__, CLASS_NAME);
 
+  // Create device (class, parent - pointer to parent struct if any, dev_t, drvdata - the data to be added to the device for callbacks, format for name)
+  mydev = device_create(myclass, NULL, first_dev, NULL, CHARDEV_NAME);
+  printk(KERN_INFO "%s: device creation returned 0x%016llx\n", __func__, (uint64_t)mydev);
+  if(mydev == NULL)
+  {
+    printk(KERN_INFO "%s: Failed to create device.\n", __func__);
+    rc = -ENOMEM;
+    goto out_destroyclass;
+  }
+
+  cdev_init(&mycdev, &fops);
+
+  rc = cdev_add(&mycdev, first_dev, 1);
+  if(rc < 0)
+  {
+    printk(KERN_INFO "%s: Failed to add device.\n", __func__);
+    goto out_destroydevice;
+  }
+
+  printk(KERN_INFO "%s: device created, check out /dev/%s\n", __func__, CHARDEV_NAME);
+
+  goto out_nothing;
+
+out_destroydevice:
+  device_destroy(myclass, first_dev);
+out_destroyclass:
+  class_destroy(myclass);
 out_unreg:
   unregister_chrdev_region(first_dev, 1);
 out_nothing:
@@ -54,7 +85,8 @@ out_nothing:
 static void
 my_exit(void)
 {
-  class_destroy(myclass);
+  device_destroy(myclass, first_dev);     // Destroy the device
+  class_destroy(myclass);                 // Destroy the class
   unregister_chrdev_region(first_dev, 1); // Unregister region of chardevs
   printk(KERN_INFO "%s: Goodbye World!\n", __func__);
 }
