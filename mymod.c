@@ -10,6 +10,7 @@
 #define CLASS_NAME "myclass"
 
 static dev_t first_dev;
+struct class * myclass = NULL;
 
 static int my_init(void)
 {
@@ -33,6 +34,19 @@ static int my_init(void)
 
   printk(KERN_INFO "%s: got chardev region, major number %d\n", __func__, MAJOR(first_dev));
 
+  // Create a class
+  myclass = class_create(THIS_MODULE, CLASS_NAME);
+  if(IS_ERR(myclass))
+  {
+    printk(KERN_INFO "%s: Failed to create class.\n", __func__);
+    rc = PTR_ERR(myclass);
+    goto out_unreg;
+  }
+
+  printk(KERN_INFO "%s: class created, check out /sys/class/%s\n", __func__, CLASS_NAME);
+
+out_unreg:
+  unregister_chrdev_region(first_dev, 1);
 out_nothing:
   return rc;
 }
@@ -40,6 +54,7 @@ out_nothing:
 static void
 my_exit(void)
 {
+  class_destroy(myclass);
   unregister_chrdev_region(first_dev, 1); // Unregister region of chardevs
   printk(KERN_INFO "%s: Goodbye World!\n", __func__);
 }
