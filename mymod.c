@@ -9,9 +9,7 @@
 #define CHARDEV_NAME "mychar"
 #define CLASS_NAME "myclass"
 
-static int major_number;
-//static struct class * chardev_class = NULL;
-//static struct device* chardev_device = NULL;
+static dev_t first_dev;
 
 static int my_init(void)
 {
@@ -26,23 +24,23 @@ static int my_init(void)
   printk(KERN_INFO "%s: Hello World!\n", __func__);
 
   // Dynamically allocate a major number
-  major_number = register_chrdev(0, CHARDEV_NAME, &fops);
-  if(major_number < 0)
+  rc = alloc_chrdev_region(&first_dev, 0, 1, CHARDEV_NAME);
+  if(rc < 0)
   {
-    printk(KERN_INFO "%s: Failed to register a major number.\n", __func__);
-    return major_number;
+    printk(KERN_INFO "%s: Failed to allocate chardev region.\n", __func__);
+    goto out_nothing;
   }
 
-  printk(KERN_INFO "%s: got chardev major number %d\n", __func__, major_number);
+  printk(KERN_INFO "%s: got chardev region, major number %d\n", __func__, MAJOR(first_dev));
 
-
+out_nothing:
   return rc;
 }
 
 static void
 my_exit(void)
 {
-  unregister_chrdev(major_number, CHARDEV_NAME);         // Unregister major number
+  unregister_chrdev_region(first_dev, 1); // Unregister region of chardevs
   printk(KERN_INFO "%s: Goodbye World!\n", __func__);
 }
 
